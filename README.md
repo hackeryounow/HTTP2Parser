@@ -303,4 +303,46 @@ parser.parse_data()
 parser = HTTP2Parser(True)
 parser.parse_data(bytes.fromhex(rst_stream))
 ```
+测试代码
+```python
+from scapy.all import *
+from scapy.layers.inet import TCP
+import binascii
+import glob
+from tqdm import tqdm
+from h2p.parser import HTTP2Parser
 
+pcap_dir = "K:\\%s"
+pathToNormal = pcap_dir % 'Normal-1UE\\'
+pathToNormal2UE = pcap_dir % 'Normal-2UE\\'
+pathToNormal3UE = pcap_dir % 'NormalUE_d\\'
+pathToAttack = pcap_dir % 'Attacks\\'
+def preprocess(path, save_file):
+    """
+    从Wireshark抓的包中抽取HTTP2数据
+    :param.txt path: Wireshark 数据包文件pcap数据包
+    :param.txt save_file: 抽取数据保存路径
+    :return:
+    """
+    datasets = glob.glob(path + "*.pcapng")
+    parser = HTTP2Parser(debug=True)
+    for file in tqdm(datasets):
+
+        pcap = sniff(offline=str(file))
+        for packet in pcap:
+            if Raw not in packet or TCP not in packet or (packet[TCP].dport != 8000 and packet[TCP].sport != 8000):
+                continue
+            # payload = payload.decode("utf8", errors="replace")
+
+            payload = packet[Raw].original
+            if b"HTTP/1.1" in payload:
+                with open("http_1.csv", 'a+', encoding="utf-8") as w:
+                    w.write(payload.decode("utf8").replace("\r\n", "$") + "\n")
+                continue
+            parser.parse_data(payload)
+            for stream_id, stream in parser.streams.items():
+                for frame in stream.frames:
+                    print(frame.text_data)
+                    with open(save_file, 'a', encoding="utf-8") as writer:
+                        writer.write(str(frame.text_data) + "\n")
+```
